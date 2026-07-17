@@ -53,9 +53,9 @@
   var activeSheet = 0;
   var pageCache = {};
 
-  // --- 检测单页/双页模式 ---
+  // --- 始终单页模式（更适合手机翻阅）---
   function detectLayout() {
-    isSinglePage = window.innerWidth <= 640 || window.innerHeight > window.innerWidth;
+    isSinglePage = true;
   }
 
   // --- 初始化 ---

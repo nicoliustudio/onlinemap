@@ -700,15 +700,9 @@ body {
   z-index: 10;
 }
 
-@media (max-width: 640px) or (orientation: portrait) {
-  .book-container { display: none; }
-  .single-page-container { display: flex; }
-}
-
-@media (min-width: 641px) and (orientation: landscape) {
-  .book-container { display: flex; }
-  .single-page-container { display: none; }
-}
+/* Single Page Mode (always, better for mobile) */
+.book-container { display: none; }
+.single-page-container { display: flex; }
 
 /* Excel Area */
 .excel-area {
