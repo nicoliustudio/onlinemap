@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0d0d1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>沉浸阅读</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="viewer-page">
+  <div class="viewer-container">
+    <!-- 顶部工具栏 -->
+    <div class="viewer-toolbar" id="toolbar">
+      <button class="toolbar-btn" id="btnBack" title="返回书架">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="19" y1="12" x2="5" y2="12"/>
+          <polyline points="12 19 5 12 12 5"/>
+        </svg>
+      </button>
+      <div class="toolbar-title" id="toolbarTitle">加载中...</div>
+      <div class="toolbar-actions">
+        <button class="toolbar-btn" id="btnZoomOut" title="缩小">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+        <button class="toolbar-btn" id="btnZoomIn" title="放大">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+          </svg>
+        </button>
+        <button class="toolbar-btn" id="btnDownload" title="下载">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- PDF 翻书阅读区 -->
+    <div class="flipbook-area" id="flipbookArea">
+      <!-- 加载中 -->
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p id="loadingText">正在加载文档...</p>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+      
+      <!-- 书本容器 -->
+      <div class="book-container" id="bookContainer">
+        <!-- 左页 -->
+        <div class="page page-left" id="pageLeft">
+          <canvas id="canvasLeft"></canvas>
+        </div>
+        <!-- 右页 -->
+        <div class="page page-right" id="pageRight">
+          <canvas id="canvasRight"></canvas>
+        </div>
+        
+        <!-- 翻页热区 -->
+        <div class="touch-zone touch-left" id="touchLeft"></div>
+        <div class="touch-zone touch-right" id="touchRight"></div>
+        
+        <!-- 翻页按钮 -->
+        <button class="flip-btn flip-prev" id="btnPrev">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <button class="flip-btn flip-next" id="btnNext">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 单页模式（手机竖屏小屏） -->
+      <div class="single-page-container" id="singlePageContainer">
+        <canvas id="canvasSingle"></canvas>
+        <div class="touch-zone touch-left" id="touchSingleLeft"></div>
+        <div class="touch-zone touch-right" id="touchSingleRight"></div>
+      </div>
+    </div>
+
+    <!-- Excel 表格阅读区 -->
+    <div class="excel-area" id="excelArea" style="display:none">
+      <div class="excel-toolbar">
+        <button class="sheet-tab active" id="sheetTabs"></button>
+      </div>
+      <div class="table-wrapper" id="tableWrapper">
+        <table id="excelTable"></table>
+      </div>
+    </div>
+
+    <!-- 底部页码 -->
+    <div class="page-indicator" id="pageIndicator">
+      <button class="page-nav" id="btnPagePrev">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <span class="page-info">
+        <span id="currentPage">0</span> / <span id="totalPages">0</span>
+      </span>
+      <button class="page-nav" id="btnPageNext">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+      <!-- 页码滑块 -->
+      <input type="range" class="page-slider" id="pageSlider" min="1" max="1" value="1">
+    </div>
+  </div>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- SheetJS -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <script src="js/viewer.js"></script>
+</body>
+</html>
