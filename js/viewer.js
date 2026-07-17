@@ -16,8 +16,8 @@
   }
 
   // --- CDN 加速：jsDelivr 有中国节点，速度远超 GitHub Pages 直连 ---
-  var CDN_BASE = 'https://cdn.jsdelivr.net/gh/nicoliustudio/onlinemap@master/';
-  var CDN_BACKUP = 'https://fastly.jsdelivr.net/gh/nicoliustudio/onlinemap@master/';
+  var CDN_BASE = 'https://cdn.jsdelivr.net/gh/nicoliustudio/onlinemap@release/';
+  var CDN_BACKUP = 'https://fastly.jsdelivr.net/gh/nicoliustudio/onlinemap@release/';
 
   function getFileUrl(filename) {
     var encoded = encodeURIComponent(filename);
@@ -31,8 +31,10 @@
   }
 
   var fileUrls = getFileUrl(fileName);
-  var currentFileUrl = fileUrls.primary;
-  var cdnFailed = false;
+  // 121MB 超大文件不在 release 分支，直接用直连
+  var isLargeFile = fileName.indexOf('常用数据手册') !== -1;
+  var currentFileUrl = isLargeFile ? fileUrls.direct : fileUrls.primary;
+  var cdnFailed = isLargeFile;
 
   // CDN 超时回退
   function tryFallback(reason) {
@@ -499,23 +501,12 @@
       }
     });
 
-    // 下载（CDN 加速）
+    // 下载（CDN 加速，超大文件直连）
     $('btnDownload').addEventListener('click', function () {
-      // 优先尝试 CDN，失败则直连
       var a = document.createElement('a');
-      a.href = currentFileUrl;
+      a.href = isLargeFile ? fileUrls.direct : currentFileUrl;
       a.download = decodeURIComponent(fileName);
       a.click();
-
-      // 500ms 后如果 CDN 可能没反应，同时触发直连 (不影响 CDN)
-      if (!cdnFailed) {
-        setTimeout(function () {
-          var a2 = document.createElement('a');
-          a2.href = fileUrls.direct;
-          a2.download = decodeURIComponent(fileName);
-          // 只在 CDN 可能失败时备用
-        }, 1000);
-      }
     });
 
     // 缩放手势（双指）
