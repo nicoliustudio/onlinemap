@@ -15,6 +15,41 @@
     return;
   }
 
+  // --- CDN 加速：jsDelivr 有中国节点，速度远超 GitHub Pages 直连 ---
+  var CDN_BASE = 'https://cdn.jsdelivr.net/gh/nicoliustudio/onlinemap@master/';
+  var CDN_BACKUP = 'https://fastly.jsdelivr.net/gh/nicoliustudio/onlinemap@master/';
+
+  function getFileUrl(filename) {
+    var encoded = encodeURIComponent(filename);
+    // 主 CDN (国内优选)
+    var cdnUrl = CDN_BASE + encoded;
+    // 备用 CDN (Fastly)
+    var backupUrl = CDN_BACKUP + encoded;
+    // 直连 (GitHub Pages)
+    var directUrl = filename;
+    return { primary: cdnUrl, backup: backupUrl, direct: directUrl };
+  }
+
+  var fileUrls = getFileUrl(fileName);
+  var currentFileUrl = fileUrls.primary;
+  var cdnFailed = false;
+
+  // CDN 超时回退
+  function tryFallback(reason) {
+    if (cdnFailed) return;
+    cdnFailed = true;
+    if (currentFileUrl === fileUrls.primary) {
+      console.warn('CDN primary failed, trying backup...');
+      currentFileUrl = fileUrls.backup;
+      return true;
+    } else if (currentFileUrl === fileUrls.backup) {
+      console.warn('CDN backup failed, using direct...');
+      currentFileUrl = fileUrls.direct;
+      return true;
+    }
+    return false;
+  }
+
   // --- DOM 缓存 ---
   var $ = function (id) { return document.getElementById(id); };
   var loadingOverlay = $('loadingOverlay');
@@ -86,7 +121,19 @@
     setLoadingText('正在加载文档...');
     updateProgress(0);
 
-    var loadingTask = pdfjsLib.getDocument(fileName);
+    loadPDF();
+  }
+
+  function loadPDF() {
+    setLoadingText(cdnFailed ? '直连加载中...' : 'CDN 加速加载中...');
+    updateProgress(cdnFailed ? 0 : 10);
+
+    var loadingTask = pdfjsLib.getDocument({
+      url: currentFileUrl,
+      disableAutoFetch: false,
+      disableStream: false
+    });
+
     loadingTask.onProgress = function (data) {
       if (data.total > 0) {
         var pct = Math.round((data.loaded / data.total) * 100);
@@ -110,7 +157,11 @@
 
       renderCurrentView();
     }).catch(function (err) {
-      setLoadingText('加载失败: ' + err.message);
+      if (tryFallback(err.message)) {
+        loadPDF();
+      } else {
+        setLoadingText('加载失败: ' + err.message);
+      }
     });
   }
 
@@ -298,11 +349,15 @@
     excelArea.style.display = '';
     pageIndicator.classList.add('hidden');
 
-    setLoadingText('正在加载表格...');
-    updateProgress(0);
+    loadExcel();
+  }
+
+  function loadExcel() {
+    setLoadingText(cdnFailed ? '直连加载中...' : 'CDN 加速加载中...');
+    updateProgress(cdnFailed ? 0 : 10);
 
     var oReq = new XMLHttpRequest();
-    oReq.open('GET', fileName, true);
+    oReq.open('GET', currentFileUrl, true);
     oReq.responseType = 'arraybuffer';
 
     oReq.onprogress = function (e) {
@@ -329,7 +384,11 @@
     };
 
     oReq.onerror = function () {
-      setLoadingText('加载失败，请检查网络');
+      if (tryFallback('Excel load failed')) {
+        loadExcel();
+      } else {
+        setLoadingText('加载失败，请检查网络');
+      }
     };
 
     oReq.send();
@@ -440,12 +499,23 @@
       }
     });
 
-    // 下载
+    // 下载（CDN 加速）
     $('btnDownload').addEventListener('click', function () {
+      // 优先尝试 CDN，失败则直连
       var a = document.createElement('a');
-      a.href = fileName;
-      a.download = fileName;
+      a.href = currentFileUrl;
+      a.download = decodeURIComponent(fileName);
       a.click();
+
+      // 500ms 后如果 CDN 可能没反应，同时触发直连 (不影响 CDN)
+      if (!cdnFailed) {
+        setTimeout(function () {
+          var a2 = document.createElement('a');
+          a2.href = fileUrls.direct;
+          a2.download = decodeURIComponent(fileName);
+          // 只在 CDN 可能失败时备用
+        }, 1000);
+      }
     });
 
     // 缩放手势（双指）
