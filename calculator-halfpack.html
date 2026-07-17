@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<title>半包装修计算器</title>
+<style>
+:root {
+  --bg: #0d0d1a; --bg2: #141428; --card: #1a1a30; --cardHover: #222245;
+  --text: #e8e8f0; --text2: #9999b0; --muted: #666680;
+  --accent: #e17055; --accent2: #fab1a0; --green: #00b894; --red: #e74c3c;
+  --border: #2a2a45; --radius: 10px; --r2: 6px;
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+.app { max-width: 800px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+
+.header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: linear-gradient(180deg, var(--bg2), var(--bg)); position: sticky; top: 0; z-index: 10; }
+.header .back { width: 32px; height: 32px; border: none; border-radius: 50%; background: transparent; color: var(--text2); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.header .back:active { background: rgba(255,255,255,0.1); color: #fff; }
+.header h1 { font-size: 18px; font-weight: 700; background: linear-gradient(135deg, var(--accent2), #fdcb6e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.header .badge { font-size: 10px; background: rgba(225,112,85,0.2); color: var(--accent2); padding: 2px 8px; border-radius: 10px; margin-left: auto; }
+
+.info-card { margin: 8px 12px; padding: 12px; background: rgba(225,112,85,0.08); border: 1px solid rgba(225,112,85,0.2); border-radius: var(--radius); }
+.info-card p { font-size: 12px; color: var(--text2); line-height: 1.7; }
+.info-card strong { color: var(--accent2); }
+
+.content { flex: 1; padding: 0 12px 100px; overflow-y: auto; }
+
+.room-header { padding: 14px 16px; margin: 8px 0; background: linear-gradient(135deg, #d63031, #e17055); border-radius: var(--radius); color: #fff; }
+.room-header h3 { font-size: 15px; margin-bottom: 2px; }
+.room-header .area-input { margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+.room-header .area-input label { font-size: 12px; opacity: 0.9; }
+.room-header .area-input input { width: 64px; padding: 6px 10px; border: none; border-radius: var(--r2); background: rgba(255,255,255,0.2); color: #fff; font-size: 15px; text-align: center; font-family: var(--font); outline: none; }
+.room-header .area-summary { font-size: 13px; margin-top: 4px; }
+
+.item-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin: 2px 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--r2); }
+.item-row .seq { font-size: 11px; color: var(--muted); width: 20px; flex-shrink: 0; }
+.item-row .name { flex: 1; font-size: 13px; min-width: 0; }
+.item-row .name small { display: block; font-size: 10px; color: var(--muted); margin-top: 1px; }
+.item-row .field { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+.item-row .field label { font-size: 9px; color: var(--muted); }
+.item-row .field input { width: 56px; padding: 5px; border: 1px solid var(--border); border-radius: var(--r2); background: #0d0d1a; color: var(--text); font-size: 13px; text-align: center; font-family: var(--font); outline: none; transition: border-color 0.15s; }
+.item-row .field input:focus { border-color: var(--accent); }
+.item-row .field .unit-price { font-size: 11px; color: var(--text2); }
+.item-row .subtotal { font-size: 14px; font-weight: 600; color: var(--accent2); min-width: 64px; text-align: right; flex-shrink: 0; }
+.item-row .subtotal.zero { color: var(--muted); font-weight: 400; }
+
+.section-title { font-size: 13px; font-weight: 600; color: var(--accent2); padding: 12px 4px 4px; margin-top: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+
+.bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; max-width: 800px; margin: 0 auto; padding: 12px 16px; background: rgba(20,20,40,0.97); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; z-index: 20; }
+.bottom-bar .total-label { font-size: 12px; color: var(--text2); }
+.bottom-bar .total-amount { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #00b894, #00cec9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.bottom-bar .total-amount.zero { background: none; -webkit-text-fill-color: var(--muted); }
+.bottom-bar .detail { font-size: 10px; color: var(--muted); }
+.bottom-bar .actions { display: flex; gap: 8px; }
+.bottom-bar button { padding: 8px 16px; border: 1px solid var(--border); border-radius: 20px; font-size: 13px; cursor: pointer; font-family: var(--font); }
+.btn-reset { background: transparent; color: var(--text2); }
+.btn-reset:active { background: rgba(255,255,255,0.05); }
+
+@media (max-width: 480px) {
+  .item-row { padding: 8px; gap: 4px; }
+  .item-row .name { font-size: 12px; }
+  .item-row .field input { width: 48px; font-size: 12px; padding: 4px; }
+  .item-row .subtotal { font-size: 13px; min-width: 52px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <button class="back" onclick="history.back()">&larr;</button>
+    <h1>半包装修计算器</h1>
+    <span class="badge">人工+辅材</span>
+  </div>
+
+  <div class="info-card">
+    <p><strong>半包说明：</strong>施工方负责人工 + 辅材（水泥、沙子、腻子、水管电线、防水涂料等）。</p>
+    <p><strong>业主自购：</strong>瓷砖、地板、木门、橱柜、卫浴洁具、开关面板、灯具等主材。</p>
+    <p>下方输入各区域面积，自动计算半包费用。数量可逐项手动调整。</p>
+  </div>
+
+  <div class="content" id="content"></div>
+
+  <div class="bottom-bar">
+    <div>
+      <div class="total-label">半包总计（人工+辅材）</div>
+      <div class="total-amount zero" id="grandTotal">¥0</div>
+      <div class="detail">主材/家电另计，请使用"全包预算计算器"</div>
+    </div>
+    <div class="actions">
+      <button class="btn-reset" id="btnReset">清空</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  var STORAGE_KEY = 'zx_halfpack_calc';
+
+  // ===== 半包施工数据 =====
+  var rooms = {
+    living: { name: '客厅/餐厅/过道', items: [
+      {name:'拆除地砖/地板', unit:'m²', price:25, hint:'铲除至原建筑层，垃圾装袋'},
+      {name:'拆除墙砖', unit:'m²', price:22, hint:'含水泥砂浆层'},
+      {name:'墙皮铲除', unit:'m²', price:5, hint:'铲除至水泥层'},
+      {name:'正铺地砖(750×1500)', unit:'m²', price:175, hint:'32.5#水泥砂浆，主材甲供'},
+      {name:'地面找平', unit:'m²', price:45, hint:'水泥基自流平，平整度≤3mm'},
+      {name:'踢脚线安装', unit:'米', price:25, hint:'暗装开槽+5元/米'},
+      {name:'墙面基层找平', unit:'m²', price:42, hint:'32.5#水泥砂浆，厚度≤20mm'},
+      {name:'墙面批刮腻子', unit:'m²', price:28, hint:'美巢/立邦耐水腻子，两遍'},
+      {name:'乳胶漆涂刷', unit:'m²', price:22, hint:'一底两面，多乐士/立邦'},
+      {name:'石膏线安装', unit:'米', price:25, hint:'素线，8-12cm'},
+      {name:'窗帘盒制作', unit:'米', price:85, hint:'细木工板基层+石膏板'},
+      {name:'轻钢龙骨石膏板吊顶', unit:'m²', price:180, hint:'平面造型，含灯槽'},
+      {name:'墙固/地固涂刷', unit:'m²', price:8, hint:'防尘固化，黄墙绿地'},
+    ]},
+    masterRoom: { name: '主卧室', items: [
+      {name:'墙皮铲除', unit:'m²', price:5},
+      {name:'地面找平(自流平)', unit:'m²', price:35},
+      {name:'墙面基层找平', unit:'m²', price:42},
+      {name:'墙面批刮腻子', unit:'m²', price:28},
+      {name:'乳胶漆涂刷', unit:'m²', price:22},
+      {name:'石膏线安装', unit:'米', price:25},
+      {name:'地面水泥找平', unit:'m²', price:45, hint:'铺地板前找平'},
+      {name:'墙固/地固涂刷', unit:'m²', price:8},
+    ]},
+    room2: { name: '次卧室', items: [
+      {name:'墙皮铲除', unit:'m²', price:5},
+      {name:'地面找平(自流平)', unit:'m²', price:35},
+      {name:'墙面基层找平', unit:'m²', price:42},
+      {name:'墙面批刮腻子', unit:'m²', price:28},
+      {name:'乳胶漆涂刷', unit:'m²', price:22},
+      {name:'石膏线安装', unit:'米', price:25},
+      {name:'地面水泥找平', unit:'m²', price:45},
+    ]},
+    mainBath: { name: '主卫生间', items: [
+      {name:'薄贴墙砖(400×800)', unit:'m²', price:125, hint:'瓷砖粘结剂，主材甲供'},
+      {name:'薄贴墙砖(600×1200)', unit:'m²', price:155, hint:'竖铺效果更好'},
+      {name:'正铺地砖(300×300)', unit:'m²', price:95},
+      {name:'墙面基层找平', unit:'m²', price:42, hint:'贴砖前必须找平找方'},
+      {name:'墙地面防水', unit:'m²', price:124, hint:'雨虹柔性防水，闭水48h'},
+      {name:'轻体砖围砌管道', unit:'米', price:158, hint:'红砖/灰砖砌筑'},
+      {name:'新建壁龛', unit:'项', price:1000},
+      {name:'管道降噪防潮', unit:'米', price:54, hint:'橡塑板包裹'},
+      {name:'过门石安装', unit:'块', price:50},
+      {name:'包下水管隔音棉', unit:'根', price:120},
+    ]},
+    subBath: { name: '次卫生间', items: [
+      {name:'薄贴墙砖(400×800)', unit:'m²', price:125},
+      {name:'正铺地砖(300×300)', unit:'m²', price:95},
+      {name:'墙面基层找平', unit:'m²', price:42},
+      {name:'墙地面防水', unit:'m²', price:124},
+      {name:'轻体砖围砌管道', unit:'米', price:158},
+      {name:'新建壁龛', unit:'项', price:1000},
+      {name:'管道降噪防潮', unit:'米', price:54},
+      {name:'过门石安装', unit:'块', price:50},
+      {name:'包下水管隔音棉', unit:'根', price:120},
+    ]},
+    kitchen: { name: '厨房', items: [
+      {name:'薄贴墙砖(400×800)', unit:'m²', price:125},
+      {name:'薄贴墙砖(600×1200)', unit:'m²', price:155},
+      {name:'正铺地砖(900×900)', unit:'m²', price:100},
+      {name:'墙面基层找平', unit:'m²', price:42},
+      {name:'墙地面防水', unit:'m²', price:124, hint:'厨房建议做防水'},
+      {name:'轻体砖围砌管道', unit:'米', price:158},
+      {name:'管道降噪防潮', unit:'米', price:54},
+      {name:'过门石安装', unit:'块', price:50},
+    ]},
+    balcony: { name: '阳台', items: [
+      {name:'薄贴墙砖(400×800)', unit:'m²', price:125},
+      {name:'正铺地砖(750×1500)', unit:'m²', price:175, hint:'通铺效果更好'},
+      {name:'墙面基层找平', unit:'m²', price:42},
+      {name:'墙地面防水', unit:'m²', price:124, hint:'有洗衣机必须做防水'},
+      {name:'轻体砖围砌管道', unit:'米', price:158},
+      {name:'管道降噪防潮', unit:'米', price:54},
+    ]},
+    electricity: { name: '水电改造', items: [
+      {name:'水电预收(按面积)', unit:'m²', price:145, hint:'伟星/日丰水管，按实结算'},
+      {name:'强弱电改造(2.5mm²)', unit:'米', price:43, hint:'开槽+10元/米'},
+      {name:'强弱电改造(4mm²)', unit:'米', price:53, hint:'厨房/空调专用'},
+      {name:'强弱电改造(6mm²)', unit:'米', price:65, hint:'即热热水器专用'},
+      {name:'水路改造(D20明管)', unit:'米', price:75},
+      {name:'水路改造(D25明管)', unit:'米', price:85},
+      {name:'下水管改造', unit:'米', price:120},
+      {name:'弱电箱移位', unit:'个', price:350},
+      {name:'强电箱改造', unit:'项', price:800, hint:'含空开漏保'},
+    ]},
+  };
+
+  var otherItems = [
+    {name:'成品保护', unit:'m²', price:15, hint:'门/窗户/地砖/燃气表保护'},
+    {name:'材料搬运费', unit:'m²', price:10, hint:'无电梯每层+200元'},
+    {name:'垃圾清运(三居)', unit:'项', price:460, hint:'运至楼下指定点'},
+    {name:'拆除砖墙(非承重)', unit:'m²', price:80, hint:'须物业同意'},
+    {name:'新建墙体', unit:'m²', price:210, hint:'红砖+双面抹灰'},
+    {name:'设计费', unit:'m²', price:50, hint:'按建筑面积，可协商'},
+    {name:'管理费', unit:'项', price:2000, hint:'项目管理及监理'},
+  ];
+
+  var dataState = {};
+
+  function init() {
+    loadState();
+    render();
+    bindReset();
+    updateTotal();
+  }
+
+  function loadState() {
+    try { var s = localStorage.getItem(STORAGE_KEY); if (s) dataState = JSON.parse(s); } catch(e) { dataState = {}; }
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(dataState)); } catch(e) {}
+  }
+
+  function getQty(key, def) { return dataState[key] !== undefined ? dataState[key] : def; }
+  function setQty(key, val) {
+    var n = parseFloat(val); if (isNaN(n) || n < 0) n = 0;
+    dataState[key] = n; saveState(); updateTotal();
+  }
+
+  function fmtMoney(n) { return '¥' + n.toLocaleString('zh-CN'); }
+  function fmti(n) { return n ? n.toLocaleString('zh-CN') : '0'; }
+
+  function render() {
+    var html = '';
+    var globalArea = getQty('hp_global_area', 100);
+
+    html += '<div class="room-header">';
+    html += '<h3>房屋总面积</h3>';
+    html += '<div class="area-input"><label>建筑面积 (m²)</label><input id="input_global_area" type="number" value="' + fmti(globalArea) + '" min="0" step="1"></div>';
+    html += '</div>';
+
+    Object.keys(rooms).forEach(function(rk) {
+      var room = rooms[rk];
+      var roomTotal = 0;
+      room.items.forEach(function(item, i) {
+        roomTotal += getQty('h_' + rk + '_' + i, 0) * item.price;
+      });
+
+      html += '<div class="room-header" style="background:linear-gradient(135deg,#2d3436,#636e72);margin-top:12px;">';
+      html += '<h3>' + room.name + '</h3>';
+      html += '<div class="area-summary">小计: ' + fmtMoney(roomTotal) + '</div>';
+      html += '</div>';
+
+      room.items.forEach(function(item, i) {
+        var key = 'h_' + rk + '_' + i;
+        var qty = getQty(key, 0);
+        var sub = qty * item.price;
+        html += '<div class="item-row">';
+        html += '<span class="seq">' + (i + 1) + '</span>';
+        html += '<div class="name">' + item.name + (item.hint ? '<small>' + item.hint + '</small>' : '') + '</div>';
+        html += '<div class="field"><input data-key="' + key + '" type="number" value="' + fmti(qty) + '" min="0" step="1" placeholder="0"><span class="unit-price">×' + item.price + '/' + item.unit + '</span></div>';
+        html += '<div class="subtotal' + (sub === 0 ? ' zero' : '') + '">' + (sub > 0 ? fmtMoney(sub) : '¥0') + '</div>';
+        html += '</div>';
+      });
+    });
+
+    // Other items
+    html += '<div class="section-title">其他费用</div>';
+    otherItems.forEach(function(item, i) {
+      var key = 'h_other_' + i;
+      var qty = getQty(key, 0);
+      var sub = qty * item.price;
+      html += '<div class="item-row">';
+      html += '<span class="seq">' + (i + 1) + '</span>';
+      html += '<div class="name">' + item.name + (item.hint ? '<small>' + item.hint + '</small>' : '') + '</div>';
+      html += '<div class="field"><input data-key="' + key + '" type="number" value="' + fmti(qty) + '" min="0" step="1" placeholder="0"><span class="unit-price">×' + item.price + '/' + item.unit + '</span></div>';
+      html += '<div class="subtotal' + (sub === 0 ? ' zero' : '') + '">' + (sub > 0 ? fmtMoney(sub) : '¥0') + '</div>';
+      html += '</div>';
+    });
+
+    document.getElementById('content').innerHTML = html;
+    bindInputs();
+  }
+
+  function bindInputs() {
+    document.querySelectorAll('input[data-key]').forEach(function(inp) {
+      inp.addEventListener('input', function() {
+        setQty(inp.dataset.key, inp.value);
+        if (inp.id === 'input_global_area') autoFill();
+        updateRowSubtotal(inp);
+        updateTotal();
+      });
+      inp.addEventListener('focus', function() { inp.select(); });
+    });
+  }
+
+  function autoFill() {
+    var area = getQty('hp_global_area', 100);
+    var config = {
+      living: { floor: Math.round(area * 0.35), wall: Math.round(area * 0.35 * 2.5), plaster: Math.round(area * 0.15), tile75: Math.round(area * 0.35), curtain: 3, ceiling: Math.round(area * 0.35 * 0.4), kick: Math.round(area * 0.35 * 1.2) },
+      masterRoom: { floor: Math.round(area * 0.18), wall: Math.round(area * 0.18 * 2.5) },
+      room2: { floor: Math.round(area * 0.14), wall: Math.round(area * 0.14 * 2.5) },
+      mainBath: { floor: 5, wall: 22, pipe: 1, niche: 1, ds: 1, wpFloor: 5, wpWall: 12, sound: 2 },
+      subBath: { floor: 4, wall: 18, pipe: 1, niche: 0, ds: 1, wpFloor: 4, wpWall: 10, sound: 2 },
+      kitchen: { floor: 7, wall: 25, pipe: 1, ds: 1, wpFloor: 7, wpWall: 5 },
+      balcony: { floor: 4, wall: 12, pipe: 0, wpFloor: 4, wpWall: 5 },
+      electricity: { area: area, wire25: 0, wire4: 0, wire6: 0, pipe20: 0, pipe25: 0, drain: 0, weakbox: 0, strongbox: 1 },
+    };
+
+    Object.keys(config).forEach(function(rk) {
+      var c = config[rk];
+      var items = rooms[rk].items;
+      items.forEach(function(item, i) {
+        var key = 'h_' + rk + '_' + i;
+        if (getQty(key, 0) === 0) {
+          var auto = 0;
+          var n = item.name;
+          if (n.indexOf('拆除地砖') !== -1) auto = c.floor;
+          else if (n.indexOf('拆除墙砖') !== -1) auto = Math.round(c.wall * 0.3);
+          else if (n.indexOf('墙皮铲除') !== -1) auto = c.wall;
+          else if (n.indexOf('正铺地砖') !== -1) auto = c.floor;
+          else if (n.indexOf('地面找平') !== -1) auto = c.floor;
+          else if (n.indexOf('踢脚线') !== -1) auto = c.kick || Math.round(c.floor * 1.2);
+          else if (n.indexOf('基层找平') !== -1) auto = c.wall;
+          else if (n.indexOf('腻子') !== -1 || n.indexOf('乳胶漆') !== -1) auto = c.wall;
+          else if (n.indexOf('石膏线') !== -1) auto = Math.round(c.floor * 0.7);
+          else if (n.indexOf('窗帘盒') !== -1) auto = c.curtain || 0;
+          else if (n.indexOf('吊顶') !== -1) auto = c.ceiling || 0;
+          else if (n.indexOf('墙固') !== -1) auto = Math.round(c.floor + c.wall);
+          else if (n.indexOf('薄贴墙砖') !== -1 && n.indexOf('600×1200') !== -1) auto = Math.round(c.wall * 0.35);
+          else if (n.indexOf('薄贴墙砖') !== -1) auto = Math.round(c.wall * 0.65);
+          else if (n.indexOf('防水') !== -1) auto = (c.wpFloor || 5) + (c.wpWall || 10);
+          else if (n.indexOf('围砌管道') !== -1) auto = c.pipe || 0;
+          else if (n.indexOf('壁龛') !== -1) auto = c.niche || 0;
+          else if (n.indexOf('降噪') !== -1) auto = (c.pipe || 0) * 3;
+          else if (n.indexOf('过门石') !== -1) auto = c.ds || 0;
+          else if (n.indexOf('隔音棉') !== -1) auto = c.sound || 0;
+          else if (n.indexOf('水电预收') !== -1) auto = c.area || 100;
+          else if (n.indexOf('2.5mm') !== -1) auto = c.wire25 || 0;
+          else if (n.indexOf('4mm') !== -1) auto = c.wire4 || 0;
+          else if (n.indexOf('6mm') !== -1) auto = c.wire6 || 0;
+          else if (n.indexOf('D20') !== -1) auto = c.pipe20 || 0;
+          else if (n.indexOf('D25') !== -1) auto = c.pipe25 || 0;
+          else if (n.indexOf('下水管') !== -1) auto = c.drain || 0;
+          else if (n.indexOf('弱电箱') !== -1) auto = c.weakbox || 0;
+          else if (n.indexOf('强电箱') !== -1) auto = c.strongbox || 0;
+          if (auto > 0) dataState[key] = auto;
+        }
+      });
+    });
+    saveState();
+    render();
+    updateTotal();
+  }
+
+  function updateRowSubtotal(inp) {
+    var row = inp.closest('.item-row'); if (!row) return;
+    var priceEl = row.querySelector('.unit-price');
+    var subEl = row.querySelector('.subtotal');
+    if (!priceEl || !subEl) return;
+    var m = priceEl.textContent.match(/×(\d+)/); if (!m) return;
+    var sub = getQty(inp.dataset.key, 0) * parseInt(m[1]);
+    subEl.textContent = sub > 0 ? fmtMoney(sub) : '¥0';
+    subEl.className = 'subtotal' + (sub === 0 ? ' zero' : '');
+    updateRoomTotals();
+  }
+
+  function updateRoomTotals() {
+    var idx = 0;
+    document.querySelectorAll('.room-header').forEach(function(h) {
+      if (idx === 0) { idx++; return; }
+      var rks = Object.keys(rooms);
+      if (idx - 1 >= rks.length) { idx++; return; }
+      var rk = rks[idx - 1];
+      var total = 0;
+      rooms[rk].items.forEach(function(item, i) {
+        total += getQty('h_' + rk + '_' + i, 0) * item.price;
+      });
+      var se = h.querySelector('.area-summary');
+      if (se) se.textContent = '小计: ' + fmtMoney(total);
+      idx++;
+    });
+  }
+
+  function bindReset() {
+    document.getElementById('btnReset').addEventListener('click', function() {
+      if (confirm('确定要清空所有数据吗？')) {
+        dataState = {}; saveState(); render(); updateTotal();
+      }
+    });
+  }
+
+  function updateTotal() {
+    var total = 0;
+    Object.keys(rooms).forEach(function(rk) {
+      rooms[rk].items.forEach(function(item, i) {
+        total += getQty('h_' + rk + '_' + i, 0) * item.price;
+      });
+    });
+    otherItems.forEach(function(item, i) {
+      total += getQty('h_other_' + i, 0) * item.price;
+    });
+
+    var el = document.getElementById('grandTotal');
+    el.textContent = total > 0 ? fmtMoney(total) : '¥0';
+    el.className = 'total-amount' + (total === 0 ? ' zero' : '');
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
