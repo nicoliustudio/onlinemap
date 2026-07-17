@@ -15,43 +15,6 @@
     return;
   }
 
-  // --- CDN 加速：jsDelivr 有中国节点，速度远超 GitHub Pages 直连 ---
-  var CDN_BASE = 'https://cdn.jsdelivr.net/gh/nicoliustudio/onlinemap@release/';
-  var CDN_BACKUP = 'https://fastly.jsdelivr.net/gh/nicoliustudio/onlinemap@release/';
-
-  function getFileUrl(filename) {
-    var encoded = encodeURIComponent(filename);
-    // 主 CDN (国内优选)
-    var cdnUrl = CDN_BASE + encoded;
-    // 备用 CDN (Fastly)
-    var backupUrl = CDN_BACKUP + encoded;
-    // 直连 (GitHub Pages)
-    var directUrl = filename;
-    return { primary: cdnUrl, backup: backupUrl, direct: directUrl };
-  }
-
-  var fileUrls = getFileUrl(fileName);
-  // 121MB 超大文件不在 release 分支，直接用直连
-  var isLargeFile = fileName.indexOf('常用数据手册') !== -1;
-  var currentFileUrl = isLargeFile ? fileUrls.direct : fileUrls.primary;
-  var cdnFailed = isLargeFile;
-
-  // CDN 超时回退
-  function tryFallback(reason) {
-    if (cdnFailed) return;
-    cdnFailed = true;
-    if (currentFileUrl === fileUrls.primary) {
-      console.warn('CDN primary failed, trying backup...');
-      currentFileUrl = fileUrls.backup;
-      return true;
-    } else if (currentFileUrl === fileUrls.backup) {
-      console.warn('CDN backup failed, using direct...');
-      currentFileUrl = fileUrls.direct;
-      return true;
-    }
-    return false;
-  }
-
   // --- DOM 缓存 ---
   var $ = function (id) { return document.getElementById(id); };
   var loadingOverlay = $('loadingOverlay');
@@ -98,8 +61,9 @@
   // --- 初始化 ---
   function init() {
     detectLayout();
-    toolbarTitle.textContent = decodeURIComponent(fileName);
-    document.title = decodeURIComponent(fileName) + ' - 沉浸阅读';
+    var displayName = decodeURIComponent(fileName);
+    toolbarTitle.textContent = displayName;
+    document.title = displayName + ' - 沉浸阅读';
 
     if (fileType === 'pdf') {
       initPDF();
@@ -123,24 +87,26 @@
     setLoadingText('正在加载文档...');
     updateProgress(0);
 
-    loadPDF();
-  }
-
-  function loadPDF() {
-    setLoadingText(cdnFailed ? '直连加载中...' : 'CDN 加速加载中...');
-    updateProgress(cdnFailed ? 0 : 10);
+    // 直接用相对路径（与 viewer.html 同域，避免跨域问题）
+    var fileUrl = fileName;
+    // 如果 fileName 尚未被编码，则编码
+    if (fileName === decodeURIComponent(fileName)) {
+      fileUrl = encodeURI(fileName);
+    }
 
     var loadingTask = pdfjsLib.getDocument({
-      url: currentFileUrl,
+      url: fileUrl,
       disableAutoFetch: false,
-      disableStream: false
+      disableStream: false,
+      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+      cMapPacked: true
     });
 
     loadingTask.onProgress = function (data) {
       if (data.total > 0) {
         var pct = Math.round((data.loaded / data.total) * 100);
         updateProgress(pct);
-        setLoadingText('正在加载 ' + pct + '%...');
+        setLoadingText('加载中 ' + pct + '%');
       }
     };
 
@@ -150,20 +116,17 @@
       totalPagesEl.textContent = totalPages;
       pageSlider.max = totalPages;
 
-      setLoadingText('准备就绪');
+      setLoadingText('就绪');
       updateProgress(100);
 
       setTimeout(function () {
         loadingOverlay.classList.add('hidden');
-      }, 400);
+      }, 300);
 
       renderCurrentView();
     }).catch(function (err) {
-      if (tryFallback(err.message)) {
-        loadPDF();
-      } else {
-        setLoadingText('加载失败: ' + err.message);
-      }
+      console.error('PDF load error:', err);
+      setLoadingText('加载失败: ' + (err.message || '未知错误'));
     });
   }
 
@@ -176,7 +139,7 @@
       // 双页模式: 左页偶数, 右页奇数
       var leftPage, rightPage;
       if (currentPage === 1) {
-        leftPage = null;  // 封面只显示右页
+        leftPage = null;
         rightPage = 1;
       } else if (currentPage % 2 === 1) {
         leftPage = currentPage;
@@ -195,14 +158,11 @@
   }
 
   function renderSinglePage(pageNum) {
-    renderPageToCanvas(pageNum, canvasSingle, function () {
-      // single page rendered
-    });
+    renderPageToCanvas(pageNum, canvasSingle);
   }
 
   function renderPage(pageNum, canvasEl, pageClass) {
     if (pageNum === null) {
-      // 清空画布
       var ctx = canvasEl.getContext('2d');
       ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
       canvasEl.style.display = 'none';
@@ -241,7 +201,6 @@
 
       var renderTask = page.render(renderContext);
       renderTask.promise.then(function () {
-        // 缓存渲染结果（限制缓存数量）
         var keys = Object.keys(pageCache);
         if (keys.length > 12) {
           delete pageCache[keys[0]];
@@ -268,12 +227,10 @@
     var oldPage = currentPage;
     currentPage = pageNum;
 
-    // 翻页动画
     if (direction && !isSinglePage) {
       animatePageTurn(oldPage, currentPage, direction);
     }
 
-    // 清除缓存（翻页后旧缓存不需要）
     pageCache = {};
     renderCurrentView();
   }
@@ -281,17 +238,11 @@
   function animatePageTurn(fromPage, toPage, direction) {
     var targetEl;
     if (direction === 'next') {
-      if (isSinglePage) {
-        targetEl = canvasSingle.parentElement;
-      } else {
-        targetEl = toPage % 2 === 1 ? document.querySelector('.page-right') : document.querySelector('.page-left');
-      }
+      targetEl = isSinglePage ? canvasSingle.parentElement :
+        (toPage % 2 === 1 ? document.querySelector('.page-right') : document.querySelector('.page-left'));
     } else {
-      if (isSinglePage) {
-        targetEl = canvasSingle.parentElement;
-      } else {
-        targetEl = document.querySelector('.page-right');
-      }
+      targetEl = isSinglePage ? canvasSingle.parentElement :
+        document.querySelector('.page-right');
     }
 
     if (targetEl) {
@@ -351,15 +302,16 @@
     excelArea.style.display = '';
     pageIndicator.classList.add('hidden');
 
-    loadExcel();
-  }
+    setLoadingText('正在加载表格...');
+    updateProgress(0);
 
-  function loadExcel() {
-    setLoadingText(cdnFailed ? '直连加载中...' : 'CDN 加速加载中...');
-    updateProgress(cdnFailed ? 0 : 10);
+    var fileUrl = fileName;
+    if (fileName === decodeURIComponent(fileName)) {
+      fileUrl = encodeURI(fileName);
+    }
 
     var oReq = new XMLHttpRequest();
-    oReq.open('GET', currentFileUrl, true);
+    oReq.open('GET', fileUrl, true);
     oReq.responseType = 'arraybuffer';
 
     oReq.onprogress = function (e) {
@@ -370,7 +322,7 @@
 
     oReq.onload = function () {
       updateProgress(100);
-      setLoadingText('正在解析...');
+      setLoadingText('解析中...');
 
       setTimeout(function () {
         try {
@@ -386,11 +338,7 @@
     };
 
     oReq.onerror = function () {
-      if (tryFallback('Excel load failed')) {
-        loadExcel();
-      } else {
-        setLoadingText('加载失败，请检查网络');
-      }
+      setLoadingText('加载失败，请检查网络');
     };
 
     oReq.send();
@@ -417,8 +365,6 @@
     var sheetName = excelWorkbook.SheetNames[index];
     var sheet = excelWorkbook.Sheets[sheetName];
     var html = XLSX.utils.sheet_to_html(sheet, { editable: false });
-
-    // 去掉 XLSX 默认加的表头样式，用我们自己的
     excelTable.innerHTML = html;
     tableWrapper.scrollTop = 0;
     tableWrapper.scrollLeft = 0;
@@ -429,35 +375,29 @@
   // ============================================
 
   function bindEvents() {
-    // 返回
     $('btnBack').addEventListener('click', function () {
       window.location.href = 'index.html';
     });
 
-    // 缩放
     $('btnZoomIn').addEventListener('click', zoomIn);
     $('btnZoomOut').addEventListener('click', zoomOut);
 
-    // 翻页按钮
     $('btnPrev').addEventListener('click', prevPage);
     $('btnNext').addEventListener('click', nextPage);
     $('btnPagePrev').addEventListener('click', prevPage);
     $('btnPageNext').addEventListener('click', nextPage);
 
-    // 翻页热区
     $('touchLeft').addEventListener('click', prevPage);
     $('touchRight').addEventListener('click', nextPage);
     $('touchSingleLeft').addEventListener('click', prevPage);
     $('touchSingleRight').addEventListener('click', nextPage);
 
-    // 页码滑块
     pageSlider.addEventListener('input', function () {
       var page = parseInt(pageSlider.value);
       if (!isNaN(page) && page >= 1 && page <= totalPages) {
         if (isSinglePage) {
           currentPage = page;
         } else {
-          // 双页模式下对齐到奇数页
           currentPage = page % 2 === 0 ? page - 1 : page;
         }
         pageCache = {};
@@ -465,10 +405,8 @@
       }
     });
 
-    // 触摸手势
     bindTouchGestures();
 
-    // 键盘
     document.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { prevPage(); }
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { nextPage(); }
@@ -479,7 +417,6 @@
       }
     });
 
-    // 窗口大小变化
     var resizeTimer;
     window.addEventListener('resize', function () {
       clearTimeout(resizeTimer);
@@ -493,7 +430,6 @@
       }, 250);
     });
 
-    // 点击阅读区中间切换工具栏显示
     flipbookArea.addEventListener('click', function (e) {
       if (e.target === flipbookArea || e.target.classList.contains('book-container')) {
         toolbar.classList.toggle('hidden');
@@ -501,18 +437,20 @@
       }
     });
 
-    // 下载（CDN 加速，超大文件直连）
+    // 下载：使用当前页面同域 URL
     $('btnDownload').addEventListener('click', function () {
       var a = document.createElement('a');
-      a.href = isLargeFile ? fileUrls.direct : currentFileUrl;
+      var dlUrl = fileName;
+      if (fileName === decodeURIComponent(fileName)) {
+        dlUrl = encodeURI(fileName);
+      }
+      a.href = dlUrl;
       a.download = decodeURIComponent(fileName);
       a.click();
     });
 
-    // 缩放手势（双指）
     bindPinchZoom();
 
-    // 禁用双击缩放（iOS）
     document.addEventListener('dblclick', function (e) {
       e.preventDefault();
     }, { passive: false });
@@ -544,19 +482,19 @@
 
   function bindPinchZoom() {
     var initialDist = 0;
-    var initialScale = 1;
+    var initialScale_ = 1;
 
     flipbookArea.addEventListener('touchstart', function (e) {
       if (e.touches.length === 2) {
         initialDist = getTouchDistance(e.touches);
-        initialScale = scale;
+        initialScale_ = scale;
       }
     }, { passive: true });
 
     flipbookArea.addEventListener('touchmove', function (e) {
       if (e.touches.length === 2 && fileType === 'pdf') {
         var dist = getTouchDistance(e.touches);
-        var newScale = initialScale * (dist / initialDist);
+        var newScale = initialScale_ * (dist / initialDist);
         newScale = Math.max(minScale, Math.min(maxScale, newScale));
         newScale = Math.round(newScale * 100) / 100;
 
@@ -568,7 +506,7 @@
     }, { passive: true });
 
     flipbookArea.addEventListener('touchend', function () {
-      if (scale !== initialScale) {
+      if (scale !== initialScale_) {
         pageCache = {};
         renderCurrentView();
       }
